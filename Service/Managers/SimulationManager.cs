@@ -1113,6 +1113,7 @@ namespace NORCE.Drilling.Simulator4nDOF.Service.Managers
                 SurfaceRPM = simulation.SetPointsList?.Count > 0 ? simulation.SetPointsList[0].SurfaceRPM : 0,            // [rad/s]
                 TopOfStringVelocity = simulation.SetPointsList?.Count > 0 ? simulation.SetPointsList[0].TopOfStringVelocity : 0,         // [m/s] 
                 CasingSection = resolvedContext.CasingSection,
+                OpenHoleSection = resolvedContext.OpenHoleSection,
                 BitRadius = resolvedContext.BitRadius,                     // [m]
                 //SleeveDistancesFromBit = Vector<double>.Build.DenseOfArray(new double[] { 500, 600, 700, 800, 900, 1000, 1100, 1200, 1300, 1400, 1500, 1600, 1700 }),
                 SleeveDistancesFromBit = Vector<double>.Build.DenseOfArray(new double[] { }),

@@ -14,11 +14,12 @@ namespace NORCE.Drilling.Simulator4nDOF.Service.Managers
         public required DrillingFluidDescription DrillingFluidDescription { get; init; }
         public Trajectory? Trajectory { get; init; }
         public SurveyRun? SurveyRun { get; init; }
-        public required Rig Rig { get; init; }
+        public required RigReadResponse Rig { get; init; }
         public GeothermalProperties? GeothermalProperties { get; init; }
         public required double FluidDensity { get; init; }
         public required double BitRadius { get; init; }
         public CasingSection? CasingSection { get; init; }
+        public OpenHoleSection? OpenHoleSection { get; init; }
     }
 
     internal static class ContextualDataResolver
@@ -50,6 +51,7 @@ namespace NORCE.Drilling.Simulator4nDOF.Service.Managers
             var geothermalProperties = await LoadInterpolatedGeothermalProperties(contextualData.GeothermalPropertiesID, simulation.Config);
         
             var casingSection = ResolveCasingSection(wellBoreArchitecture, contextualData.CasingID);
+            var openHoleSection = ResolveOpenHoleSection(wellBoreArchitecture, contextualData.CasingID);
             var fluidDensity = ResolveFluidDensity(drillingFluidDescription, contextualData.Temperature, contextualData.SurfacePipePressure);
             var bitRadius = ResolveBitRadius(drillString);
 
@@ -61,13 +63,14 @@ namespace NORCE.Drilling.Simulator4nDOF.Service.Managers
                 SurveyRun = surveyRun,
                 Rig = rig,
                 CasingSection = casingSection,
+                OpenHoleSection = openHoleSection,
                 FluidDensity = fluidDensity,
                 BitRadius = bitRadius,
                 GeothermalProperties = geothermalProperties
             };
         }
 
-        private static async Task<Rig> LoadRigAsync(Simulation simulation)
+        private static async Task<RigReadResponse> LoadRigAsync(Simulation simulation)
         {
             if (simulation.ContextualData?.RigID is Guid rigId && rigId != Guid.Empty)
             {
@@ -449,6 +452,19 @@ namespace NORCE.Drilling.Simulator4nDOF.Service.Managers
             }
             var casingSections = wellBoreArchitecture.CasingSections.ToList();
             return casingSections[(int) casingID];
+        }
+
+        /// <summary>
+        /// The open hole section belongs to the wellbore architecture and lies below the deepest casing section,
+        /// so it is only used when the selected casing section is the last one.
+        /// </summary>
+        private static OpenHoleSection? ResolveOpenHoleSection(WellBoreArchitecture? wellBoreArchitecture, int? casingID)
+        {
+            if (wellBoreArchitecture?.CasingSections == null || casingID == null)
+            {
+                return null;
+            }
+            return casingID == wellBoreArchitecture.CasingSections.Count - 1 ? wellBoreArchitecture.OpenHoleSection : null;
         }
 
         private static double ResolveFluidDensity(DrillingFluidDescription drillingFluidDescription, double temperature, double surfacePipePressure)

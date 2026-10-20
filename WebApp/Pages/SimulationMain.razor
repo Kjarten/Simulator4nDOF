@@ -165,7 +165,7 @@
 
     private List<WellBore>? wellBoreList { get; set; } = null;
     private List<DrillStringLight>? drillStringList { get; set; } = null;
-    private List<RigLight>? rigList { get; set; } = null;
+    private List<RigReadResponse>? rigList { get; set; } = null;
     private List<Trajectory>? trajectoryList { get; set; } = null;
     private List<GeothermalProperties>? geothermalPropertiesList { get; set; } = null;
     private List<WellBoreArchitecture>? wellBoreArchitecureList { get; set; } = null;
@@ -258,21 +258,21 @@
             logger.LogInformation("Trying to load list of Simulation from client: " + APIUtils.HostNameSimulator4nDOF);
             var SimulationTask = APIUtils.ClientSimulator4nDOF.GetAllSimulationLightAsync();
             logger.LogInformation("Trying to load list of WellBore from client: " + APIUtils.HostNameWellBore);
-            var wellBoreTask = APIUtils.ClientWellBore.GetAllWellBoreAsync();
+            var wellBoreTask = APIUtils.GetAllByIdAsync(() => APIUtils.ClientWellBore.GetAllWellBoreIdAsync(), id => APIUtils.ClientWellBore.GetWellBoreByIdAsync(id));
             logger.LogInformation("Trying to load list of Well from client: " + APIUtils.HostNameWell);
-            var wellTask = APIUtils.ClientWell.GetAllWellAsync();
+            var wellTask = APIUtils.GetAllByIdAsync(() => APIUtils.ClientWell.GetAllWellIdAsync(), id => APIUtils.ClientWell.GetWellByIdAsync(id));
             logger.LogInformation("Trying to load list of Cluster from client: " + APIUtils.HostNameCluster);
-            var clusterTask = APIUtils.ClientCluster.GetAllClusterAsync();
+            var clusterTask = APIUtils.GetAllByIdAsync(() => APIUtils.ClientCluster.GetAllClusterIdAsync(), id => APIUtils.ClientCluster.GetClusterByIdAsync(id));
             logger.LogInformation("Trying to load list of Field from client: " + APIUtils.HostNameField);
-            var fieldTask = APIUtils.ClientField.GetAllFieldAsync();
+            var fieldTask = APIUtils.GetAllByIdAsync(() => APIUtils.ClientField.GetAllFieldIdAsync(), id => APIUtils.ClientField.GetFieldByIdAsync(id));
             logger.LogInformation("Trying to load list of DrillString from client: " + APIUtils.HostNameDrillString);
             var drillStringTask = APIUtils.ClientDrillString.GetAllDrillStringLightAsync();
             logger.LogInformation("Trying to load list of Rig from client: " + APIUtils.HostNameRig);
-            var rigTask = APIUtils.ClientRig.GetAllRigLightAsync();
+            var rigTask = APIUtils.GetAllByIdAsync(() => APIUtils.ClientRig.GetAllRigIdAsync(), id => APIUtils.ClientRig.GetRigByIdAsync(id));
             logger.LogInformation("Trying to load list of Trajectory from client: " + APIUtils.HostNameTrajectory);
-            var trajectoryTask = APIUtils.ClientTrajectory.GetAllTrajectoryAsync();
+            var trajectoryTask = APIUtils.GetAllByIdAsync(() => APIUtils.ClientTrajectory.GetAllTrajectoryIdAsync(), id => APIUtils.ClientTrajectory.GetTrajectoryByIdAsync(id));
             logger.LogInformation("Trying to load list of Architectures from client: " + APIUtils.HostNameWellBoreArchitecture);
-            var architectureTask = APIUtils.ClientWellBoreArchitecture.GetAllWellBoreArchitectureAsync();
+            var architectureTask = APIUtils.GetAllByIdAsync(() => APIUtils.ClientWellBoreArchitecture.GetAllWellBoreArchitectureIdAsync(), id => APIUtils.ClientWellBoreArchitecture.GetWellBoreArchitectureByIdAsync(id));
             logger.LogInformation("Trying to load list of Drilling Fluids from client: " + APIUtils.HostNameDrillingFluid);
             var drillingFluidTask = APIUtils.ClientDrillingFluid.GetAllDrillingFluidDescriptionAsync();
             logger.LogInformation("Trying to load list of Geothermal Properties from client: " + APIUtils.HostBasePathGeothermalProperties);
@@ -348,7 +348,7 @@
                 {
                     try
                     {
-                        wellBoreList = (List<WellBore>)await wellBoreTask; // awaiting the finished task allows to retrieve its result and throw exception if needed
+                        wellBoreList = await wellBoreTask; // awaiting the finished task allows to retrieve its result and throw exception if needed
                         if (wellBoreList != null)
                         {
                             wellBoreList.Sort((t1, t2) => t1.Name.CompareTo(t2.Name));
@@ -368,7 +368,7 @@
                 {
                     try
                     {
-                        wellList = (List<Well>)await wellTask; // awaiting the finished task allows to retrieve its result and throw exception if needed
+                        wellList = await wellTask; // awaiting the finished task allows to retrieve its result and throw exception if needed
                         if (wellList != null)
                         {
                             wellList.Sort((t1, t2) => t1.Name.CompareTo(t2.Name));
@@ -388,7 +388,7 @@
                 {
                     try
                     {
-                        clusterList = (List<Cluster>)await clusterTask; // awaiting the finished task allows to retrieve its result and throw exception if needed
+                        clusterList = await clusterTask; // awaiting the finished task allows to retrieve its result and throw exception if needed
                         if (clusterList != null)
                         {
                             clusterList.Sort((t1, t2) => t1.Name.CompareTo(t2.Name));
@@ -408,7 +408,7 @@
                 {
                     try
                     {
-                        fieldList = (List<Field>)await fieldTask; // awaiting the finished task allows to retrieve its result and throw exception if needed
+                        fieldList = await fieldTask; // awaiting the finished task allows to retrieve its result and throw exception if needed
                         if (fieldList != null)
                         {
                             fieldList.Sort((t1, t2) => t1.Name.CompareTo(t2.Name));
@@ -448,8 +448,8 @@
                 {
                     try
                     {
-                        rigList = ((List<RigLight>)await rigTask)
-                            .Where(rig => rig != null && !rig.IsFixedPlatform)
+                        rigList = (await rigTask)
+                            .Where(rig => rig != null && rig.MobilityType != RigMobilityType.Fixed)
                             .ToList();
                         if (rigList != null)
                         {
@@ -470,7 +470,7 @@
                 {
                     try
                     {
-                        trajectoryList = (List<Trajectory>)await trajectoryTask; // awaiting the finished task allows to retrieve its result and throw exception if needed
+                        trajectoryList = await trajectoryTask; // awaiting the finished task allows to retrieve its result and throw exception if needed
                         if (trajectoryList != null)
                         {
                             trajectoryList.Sort((t1, t2) => t1.Name.CompareTo(t2.Name));
@@ -490,7 +490,7 @@
                 {
                     try
                     {
-                        wellBoreArchitecureList = (List<WellBoreArchitecture>)await architectureTask; // awaiting the finished task allows to retrieve its result and throw exception if needed
+                        wellBoreArchitecureList = await architectureTask; // awaiting the finished task allows to retrieve its result and throw exception if needed
                         if (wellBoreArchitecureList != null)
                         {
                             wellBoreArchitecureList.Sort((t1, t2) => t1.Name.CompareTo(t2.Name));
