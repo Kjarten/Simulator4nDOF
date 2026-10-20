@@ -111,11 +111,11 @@
             </MudSelect>
         </MudItem>
         <MudItem xs="4">
-            <MudSelect T="SurveyRunLight" Label="Survey run (optional)" @bind-Value="SelectedSurveyRun" Variant="Variant.Text"
+            <MudSelect T="SurveyRun" Label="Survey run (optional)" @bind-Value="SelectedSurveyRun" Variant="Variant.Text"
                        Clearable="true" Placeholder="Use trajectory" Disabled="@(SelectedTrajectory == null)"
                        ToStringFunc="@(s => s?.Name)"
                        HelperText="If selected, the survey run is used instead of the trajectory">
-                @foreach (SurveyRunLight surveyRun in FilteredSurveyRuns)
+                @foreach (SurveyRun surveyRun in FilteredSurveyRuns)
                 {
                     <MudSelectItem Value="@surveyRun">@surveyRun.Name</MudSelectItem>
                 }
@@ -165,10 +165,10 @@
         @if (SelectedCluster != null && !SelectedCluster.IsFixedPlatform)
         {
             <MudItem xs="12">
-                <MudSelect T="RigLight" @bind-Value="SelectedRig" Label="Rig for simulation case" Variant="Variant.Text">
+                <MudSelect T="RigReadResponse" @bind-Value="SelectedRig" Label="Rig for simulation case" Variant="Variant.Text">
                     @if (Rigs != null)
                     {
-                        @foreach (var rig in Rigs.Where(rig => rig != null && !rig.IsFixedPlatform))
+                        @foreach (var rig in Rigs.Where(rig => rig != null))
                         {
                             @if (rig != null && !string.IsNullOrEmpty(rig.Name))
                             {
@@ -253,7 +253,7 @@
     public List<DrillStringLight>? DrillStrings { get; set; } = null;
 
     [Parameter]
-    public List<RigLight>? Rigs { get; set; } = null;
+    public List<RigReadResponse>? Rigs { get; set; } = null;
 
     [Parameter]
     public List<Trajectory>? Trajectories { get; set; } = null;
@@ -375,9 +375,9 @@
             }
         }
     }
-    private List<SurveyRunLight> FilteredSurveyRuns { get; set; } = new List<SurveyRunLight>();
-    private SurveyRunLight? _selectedSurveyRun = null;
-    private SurveyRunLight? SelectedSurveyRun
+    private List<SurveyRun> FilteredSurveyRuns { get; set; } = new List<SurveyRun>();
+    private SurveyRun? _selectedSurveyRun = null;
+    private SurveyRun? SelectedSurveyRun
     {
         get
         {
@@ -406,7 +406,7 @@
     /// </summary>
     private async Task<bool> LoadFilteredSurveyRunsAsync()
     {
-        FilteredSurveyRuns = new List<SurveyRunLight>();
+        FilteredSurveyRuns = new List<SurveyRun>();
         var trajectory = _selectedTrajectory;
         if (trajectory?.MetaInfo == null)
         {
@@ -424,9 +424,9 @@
                 return true;
             }
             var orderedIDs = sections.OrderBy(section => section.StartAbscissa).Select(section => section.SurveyRunID).Distinct().ToList();
-            var surveyRuns = await APIUtils.ClientTrajectory.GetAllSurveyRunLightAsync(wellBoreId: trajectory.WellBoreID);
+            var surveyRuns = await APIUtils.GetByIdsAsync(orderedIDs, id => APIUtils.ClientTrajectory.GetSurveyRunByIdAsync(id, includeMeasurements: false, includeCalculatedStations: false));
             FilteredSurveyRuns = orderedIDs
-                .Select(id => surveyRuns?.FirstOrDefault(surveyRun => surveyRun.MetaInfo?.ID == id))
+                .Select(id => surveyRuns.FirstOrDefault(surveyRun => surveyRun.MetaInfo?.ID == id))
                 .Where(surveyRun => surveyRun != null)
                 .Select(surveyRun => surveyRun!)
                 .ToList();
@@ -461,8 +461,8 @@
             }
         }
     }
-    private RigLight? _selectedRig = null;
-    private RigLight? SelectedRig
+    private RigReadResponse? _selectedRig = null;
+    private RigReadResponse? SelectedRig
     {
         get
         {
@@ -571,9 +571,15 @@
             {
                 TopWaterDepthSource.SeaWaterLevelDepthReference = -_selectedCluster.TopWaterDepth.GaussianValue.Mean;
             }
-            if (WellHeadDepthSource != null && _selectedCluster.ReferenceDepth != null && _selectedCluster.ReferenceDepth.GaussianValue != null)
+<<<<<<< HEAD
+            if (WellHeadDepthSource != null && _selectedCluster.ReferencePoint.TVD != null)
             {
-                WellHeadDepthSource.WellHeadDepthReference = -_selectedCluster.ReferenceDepth.GaussianValue.Mean;
+                WellHeadDepthSource.WellHeadDepthReference = -_selectedCluster.ReferencePoint.TVD;
+=======
+            if (WellHeadDepthSource != null && _selectedCluster.ReferencePoint?.TVD is double clusterReferenceDepth)
+            {
+                WellHeadDepthSource.WellHeadDepthReference = -clusterReferenceDepth;
+>>>>>>> origin/main
             }
         }
     }
