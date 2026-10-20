@@ -168,7 +168,7 @@
                 <MudSelect T="RigLight" @bind-Value="SelectedRig" Label="Rig for simulation case" Variant="Variant.Text">
                     @if (Rigs != null)
                     {
-                        @foreach (var rig in Rigs.Where(rig => rig != null && !rig.IsFixedPlatform))
+                        @foreach (var rig in Rigs.Where(rig => rig != null))
                         {
                             @if (rig != null && !string.IsNullOrEmpty(rig.Name))
                             {
