@@ -235,6 +235,22 @@ namespace NORCE.Drilling.Simulator4nDOF.Simulator.SimulatorModels
         private double[] frictionTorqueNodal;
         #endregion
 
+        #region Eigenvalue problem matrices
+        /// <summary>
+        /// inv(K)·M for the axial direction, with node 0 clamped (size numberOfAxialNodes − 1)
+        /// </summary>
+        private Matrix<double> axialInverseStiffnessTimesMass;
+        /// <summary>
+        /// inv(K)·M for the torsional direction, with node 0 clamped (size numberOfAxialNodes − 1)
+        /// </summary>
+        private Matrix<double> torsionalInverseStiffnessTimesMass;
+        /// <summary>
+        /// inv(K)·M for the lateral direction, bending stiffness only and mass including the
+        /// added fluid mass, with node 0 clamped (size numberOfLateralNodes − 1)
+        /// </summary>
+        private Matrix<double> lateralInverseStiffnessTimesMass;
+        #endregion
+
         /// <summary>
         /// Bit-rock interaction model
         /// </summary>
@@ -393,6 +409,10 @@ namespace NORCE.Drilling.Simulator4nDOF.Simulator.SimulatorModels
             trialAxialAcceleration = new double[numberOfAxialNodes];
             axialFrictionNodal = new double[numberOfAxialNodes];
             frictionTorqueNodal = new double[numberOfAxialNodes];
+            // inv(K)·M matrices for the eigenvalue problem
+            axialInverseStiffnessTimesMass = CalculateAxialInverseStiffnessTimesMass();
+            torsionalInverseStiffnessTimesMass = CalculateTorsionalInverseStiffnessTimesMass();
+            lateralInverseStiffnessTimesMass = CalculateLateralInverseStiffnessTimesMass();
         }
         /// <summary>
         /// Computes the bending moments at each interior node using the half-sine mode-shape
@@ -603,6 +623,65 @@ namespace NORCE.Drilling.Simulator4nDOF.Simulator.SimulatorModels
             //There is no element at i = numberOfAxialNodes. StiffnessRight should aready be at 0.
             double PhiPlus1 = (i == numberOfAxialNodes - 1) ? 0.0 : state.AngularDisplacement[i + 1];
             return - ( torsionalStiffnessLeft[i] * PhiMinus1  + torsionalStiffnessMid[i] * state.AngularDisplacement[i] + torsionalStiffnessRight[i] * PhiPlus1 );
+        }
+        /// <summary>
+        /// Returns inv(K)·M for the axial direction, using the axial stiffness and the lumped axial mass.
+        /// Node 0 is clamped and the bit end is free.
+        /// </summary>
+        /// <returns>Dense matrix of size (numberOfAxialNodes − 1).</returns>
+        private Matrix<double> CalculateAxialInverseStiffnessTimesMass()
+        {
+            return CalculateInverseStiffnessTimesMass(axialStiffnessLeft, axialStiffnessMid, axialStiffnessRight, axialLumpedMass);
+        }
+        /// <summary>
+        /// Returns inv(K)·M for the torsional direction, using the torsional stiffness and the lumped torsional inertia.
+        /// Node 0 is clamped and the bit end is free.
+        /// </summary>
+        /// <returns>Dense matrix of size (numberOfAxialNodes − 1).</returns>
+        private Matrix<double> CalculateTorsionalInverseStiffnessTimesMass()
+        {
+            return CalculateInverseStiffnessTimesMass(torsionalStiffnessLeft, torsionalStiffnessMid, torsionalStiffnessRight, torsionalLumpedInertia);
+        }
+        /// <summary>
+        /// Returns inv(K)·M for the lateral direction, using the bending stiffness only (no tension or
+        /// pressure induced geometric stiffness) and the lumped lateral mass plus the added fluid mass.
+        /// Node 0 is clamped and the bit end is free.
+        /// </summary>
+        /// <returns>Dense matrix of size (numberOfLateralNodes − 1).</returns>
+        private Matrix<double> CalculateLateralInverseStiffnessTimesMass()
+        {
+            double[] lateralMass = new double[numberOfLateralNodes];
+            for (int i = 0; i < numberOfLateralNodes; i++)
+                lateralMass[i] = lateralLumpedMass[i] + addedLateralFluidMass[i];
+            return CalculateInverseStiffnessTimesMass(lateralStiffnessLeft, lateralStiffnessMid, lateralStiffnessRight, lateralMass);
+        }
+        /// <summary>
+        /// Builds the tri-diagonal stiffness matrix K and the diagonal mass matrix M from their vector
+        /// representations, clamps node 0 by removing its row and column, and returns inv(K)·M.
+        /// The product is obtained by solving K·X = M instead of inverting K explicitly.
+        /// </summary>
+        /// <param name="stiffnessLeft">Stiffness term left to the diagonal.</param>
+        /// <param name="stiffnessMid">Stiffness term on the diagonal.</param>
+        /// <param name="stiffnessRight">Stiffness term right to the diagonal.</param>
+        /// <param name="mass">Lumped mass (or inertia) at each node.</param>
+        /// <returns>Dense matrix of size (number of nodes − 1).</returns>
+        private static Matrix<double> CalculateInverseStiffnessTimesMass(double[] stiffnessLeft, double[] stiffnessMid, double[] stiffnessRight, double[] mass)
+        {
+            // Node 0 is clamped, so the reduced system starts at node 1
+            int size = stiffnessMid.Length - 1;
+            Matrix<double> stiffnessMatrix = Matrix<double>.Build.Dense(size, size);
+            Matrix<double> massMatrix = Matrix<double>.Build.Dense(size, size);
+            for (int i = 0; i < size; i++)
+            {
+                int node = i + 1;
+                if (i > 0)
+                    stiffnessMatrix[i, i - 1] = stiffnessLeft[node];
+                stiffnessMatrix[i, i] = stiffnessMid[node];
+                if (i < size - 1)
+                    stiffnessMatrix[i, i + 1] = stiffnessRight[node];
+                massMatrix[i, i] = mass[node];
+            }
+            return stiffnessMatrix.Solve(massMatrix);
         }
         /// <summary>
         /// Clamps a lateral stiffness coefficient to prevent negative (buckling-induced) values
