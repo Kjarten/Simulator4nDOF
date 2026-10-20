@@ -55,7 +55,14 @@ namespace NORCE.Drilling.Simulator4nDOF.Simulator.DataModel.ParametersModel
 
             NumberOfElements  = Drillstring.ElementLength.Count;
             NumberOfNodes     = Drillstring.ElementLength.Count + 1;
+<<<<<<< HEAD
             Wellbore          = new SimulatorWellbore(in Drillstring, in configuration.CasingSection, configuration.OpenHoleSection);
+=======
+            Wellbore          = new SimulatorWellbore(
+                in Drillstring,
+                in configuration.CasingSection,
+                configuration.OpenHoleSection);
+>>>>>>> origin/main
             Trajectory        = configuration.SurveyRun != null
                 ? new SimulatorTrajectory(Drillstring, configuration.SurveyRun)
                 : configuration.Trajectory != null

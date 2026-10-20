@@ -571,9 +571,15 @@
             {
                 TopWaterDepthSource.SeaWaterLevelDepthReference = -_selectedCluster.TopWaterDepth.GaussianValue.Mean;
             }
+<<<<<<< HEAD
             if (WellHeadDepthSource != null && _selectedCluster.ReferencePoint.TVD != null)
             {
                 WellHeadDepthSource.WellHeadDepthReference = -_selectedCluster.ReferencePoint.TVD;
+=======
+            if (WellHeadDepthSource != null && _selectedCluster.ReferencePoint?.TVD is double clusterReferenceDepth)
+            {
+                WellHeadDepthSource.WellHeadDepthReference = -clusterReferenceDepth;
+>>>>>>> origin/main
             }
         }
     }

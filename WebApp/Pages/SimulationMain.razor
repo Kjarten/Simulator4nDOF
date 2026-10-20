@@ -448,8 +448,13 @@
                 {
                     try
                     {
+<<<<<<< HEAD
                         rigList = (await rigTask)
                             .Where(rig => rig != null && rig.MobilityType != RigMobilityType.Fixed)
+=======
+                        rigList = ((List<RigLight>)await rigTask)
+                            .Where(rig => rig != null)
+>>>>>>> origin/main
                             .ToList();
                         if (rigList != null)
                         {

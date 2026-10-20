@@ -16,7 +16,10 @@ namespace NORCE.Drilling.Simulator4nDOF.Simulator.DataModel.ParametersModel
 
         private Vector<double> boreholeRadius;                   // [m] Wellbore radius calculation
 
-        public SimulatorWellbore( in SimulatorDrillString drillString, in CasingSection casingSection, OpenHoleSection? openHoleSection )
+        public SimulatorWellbore(
+            in SimulatorDrillString drillString,
+            in CasingSection casingSection,
+            OpenHoleSection? openHoleSection = null)
         {
             
             List<SimulatorBoreHole> boreHoleSizes = new();
@@ -33,7 +36,7 @@ namespace NORCE.Drilling.Simulator4nDOF.Simulator.DataModel.ParametersModel
                 );
                 depth += boreHoleSize.Length.GaussianValue.Mean ?? 0.0;
             }
-            if (openHoleSection?.HoleSizes != null)
+            if (openHoleSection != null)
             {
                 foreach (BoreHoleSize boreHoleSize in openHoleSection.HoleSizes)
                 {
@@ -78,4 +81,3 @@ namespace NORCE.Drilling.Simulator4nDOF.Simulator.DataModel.ParametersModel
         }
     }
 }
- 
