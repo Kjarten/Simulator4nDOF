@@ -60,7 +60,7 @@ namespace NORCE.Drilling.Simulator4nDOF.Simulator
             IntertiaCorrectionFactor = configuration.InertiaCorrectionFactorZTorque;
 
             DrillStringImpedance = simulationParameters.Drillstring.ElementPolarInertia[0] 
-                / Math.Sqrt(simulationParameters.Drillstring.ElementShearModuli[0] * simulationParameters.Drillstring.ElementDensity[0]);
+                * Math.Sqrt(simulationParameters.Drillstring.ElementShearModuli[0] * simulationParameters.Drillstring.ElementDensity[0]);
             if (simulationParameters.TopDriveDrawwork.TopDriveControllerType == 2)
             {
                 //Tuned PI controller simulationParameters
