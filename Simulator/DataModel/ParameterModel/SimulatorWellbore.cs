@@ -36,7 +36,7 @@ namespace NORCE.Drilling.Simulator4nDOF.Simulator.DataModel.ParametersModel
                 );
                 depth += boreHoleSize.Length.GaussianValue.Mean ?? 0.0;
             }
-            if (openHoleSection != null)
+            if (openHoleSection?.HoleSizes != null)
             {
                 foreach (BoreHoleSize boreHoleSize in openHoleSection.HoleSizes)
                 {

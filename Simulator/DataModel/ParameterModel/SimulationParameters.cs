@@ -57,7 +57,9 @@ namespace NORCE.Drilling.Simulator4nDOF.Simulator.DataModel.ParametersModel
 
             NumberOfElements  = Drillstring.ElementLength.Count;
             NumberOfNodes     = Drillstring.ElementLength.Count + 1;
-            Wellbore          = new SimulatorWellbore(
+            NumberOfAxialElements = Drillstring.AxialElementLength.Count;
+            NumberOfAxialNodes    = Drillstring.AxialElementLength.Count + 1;
+            Wellbore         = new SimulatorWellbore(
                 in Drillstring,
                 in configuration.CasingSection,
                 configuration.OpenHoleSection);
