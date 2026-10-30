@@ -409,3 +409,7 @@ FodyWeavers.xsd
 deployment_script.sh
 ### VisualStudio Patch ###
 # Additional files built by Visual Studio
+
+HydraulicModelIntegrationPlan.md
+LateralTrajectoryCoupling.md
+Simulator4nDOF-Architecture.svg
