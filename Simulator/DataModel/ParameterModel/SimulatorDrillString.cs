@@ -228,6 +228,60 @@ namespace NORCE.Drilling.Simulator4nDOF.Simulator.DataModel.ParametersModel
         /// [m⁴] Inactive second moment of area
         /// </summary>        
         public List<double> InactiveElementSecondMomentOfArea = new();
+
+        // Axial-torsional discretization. Each axial-torsional element is a first order finite
+        // element that groups consecutive lateral elements. Short components are grouped together
+        // until the element reaches MinimumAxialElementLength.
+        /// <summary>
+        /// [m] Minimum length of an axial-torsional element. Shorter elements limit the stable time step,
+        /// in particular with stiffness-proportional damping, so they are merged with their neighbours
+        /// </summary>
+        public double MinimumAxialElementLength = 10;
+        /// <summary>
+        /// [-] Number of lateral elements in each active axial-torsional element (top-first)
+        /// </summary>
+        public List<int> AxialElementLateralCount = new();
+        /// <summary>
+        /// [-] Number of lateral elements in each inactive axial-torsional element
+        /// </summary>
+        public List<int> InactiveAxialElementLateralCount = new();
+        /// <summary>
+        /// [m] Axial-torsional element length
+        /// </summary>
+        public List<double> AxialElementLength = new();
+        /// <summary>
+        /// [kg/m³] Axial-torsional element density
+        /// </summary>
+        public List<double> AxialElementDensity = new();
+        /// <summary>
+        /// [m²] Axial-torsional element cross-section area
+        /// </summary>
+        public List<double> AxialElementArea = new();
+        /// <summary>
+        /// [m⁴] Axial-torsional element polar moment of inertia
+        /// </summary>
+        public List<double> AxialElementPolarInertia = new();
+        /// <summary>
+        /// [Pa] Axial-torsional element Young's modulus
+        /// </summary>
+        public List<double> AxialElementYoungModuli = new();
+        /// <summary>
+        /// [Pa] Axial-torsional element shear modulus
+        /// </summary>
+        public List<double> AxialElementShearModuli = new();
+        /// <summary>
+        /// [-] Lateral node index of each axial-torsional node
+        /// </summary>
+        public List<int> AxialToLateralNode = new();
+        /// <summary>
+        /// [-] Axial-torsional element containing each lateral node
+        /// </summary>
+        public List<int> LateralToAxialElement = new();
+        /// <summary>
+        /// [-] Natural coordinate (0 at the top node, 1 at the bottom node) of each lateral
+        /// node inside its axial-torsional element
+        /// </summary>
+        public List<double> LateralNaturalCoordinate = new();
                                                        
 
         // Sleeves - to be configured
@@ -254,23 +308,31 @@ namespace NORCE.Drilling.Simulator4nDOF.Simulator.DataModel.ParametersModel
         /// </summary>
         public Vector<double> SleeveTorsionalDamping;
 
+        // Structural damping uses Rayleigh damping, C = a·M + b·K
         /// <summary>
-        /// [N.m.s/rad] Torsional damping
+        /// [1/s] Torsional mass-proportional damping coefficient a
         /// </summary>
-        public double TorsionalDampingFactor = 1.0;
+        public double MassProportionalTorsional = 0.35;
         /// <summary>
-        /// [N.s/m] Axial damping
+        /// [s] Torsional stiffness-proportional damping coefficient b
         /// </summary>
-        public double AxialDampingFactor = 1.0;
+        public double StiffnessProportionalTorsional = 0.006;
         /// <summary>
-        /// [N.s/m] Lateral damping
+        /// [1/s] Axial mass-proportional damping coefficient a
         /// </summary>
-        public double LateralDampingFactor = 0.0;
-
-        // Structural damping - calculated
-        public double CalculatedTorsionalDamping;
-        public double CalculatedAxialDamping;
-        public double CalculateLateralDamping;
+        public double MassProportionalAxial = 0.35;
+        /// <summary>
+        /// [s] Axial stiffness-proportional damping coefficient b
+        /// </summary>
+        public double StiffnessProportionalAxial = 0.006;
+        /// <summary>
+        /// [1/s] Lateral mass-proportional damping coefficient a
+        /// </summary>
+        public double MassProportionalLateral = 0.0;
+        /// <summary>
+        /// [s] Lateral stiffness-proportional damping coefficient b
+        /// </summary>
+        public double StiffnessProportionalLateral = 0.0;
         public double TotalLength;
 
         //IMU sensors - configure
@@ -324,9 +386,13 @@ namespace NORCE.Drilling.Simulator4nDOF.Simulator.DataModel.ParametersModel
             SensorDistanceFromBit = configuration.SensorDistanceFromBit; 
             SleeveDistancesFromBit = configuration.SleeveDistancesFromBit;
             SleeveTorsionalDampingCoefficient = configuration.SleeveDamping;
-            TorsionalDampingFactor = configuration.TorsionalDamping;
-            AxialDampingFactor = configuration.AxialDamping;
-            LateralDampingFactor = configuration.LateralDamping;
+            MassProportionalTorsional = configuration.MassProportionalTorsional;
+            StiffnessProportionalTorsional = configuration.StiffnessProportionalTorsional;
+            MassProportionalAxial = configuration.MassProportionalAxial;
+            StiffnessProportionalAxial = configuration.StiffnessProportionalAxial;
+            MassProportionalLateral = configuration.MassProportionalLateral;
+            StiffnessProportionalLateral = configuration.StiffnessProportionalLateral;
+            MinimumAxialElementLength = configuration.MinimumAxialElementLength;
             #region Drill-String simplification
             // Simplify geometry by merging similar components 
             List<DrillStringComponentTypes> componentTypeList = new List<DrillStringComponentTypes>
@@ -444,20 +510,38 @@ namespace NORCE.Drilling.Simulator4nDOF.Simulator.DataModel.ParametersModel
             // length (from the bit)
             double lastElementPosition = 0;
             RelativeNodeDepth.Add(bitDepth);
-            
-            // Loop through all drill-string length                        
+            int lateralElementsPerAxialElement = Math.Max(configuration.LateralElementsPerAxialElement, 1);
+
+            // Loop through all drill-string length
             for (int i = 0; i < mergedComponentLength.Count; i++)
             {
-                // Using this integer notation, if the 
+                // Using this integer notation, if the
                 //  max(  floor(length/expectedLength) - 1, 0 ) + 1
                 //   will return 1 for all length/expectedLength < 2
-                //   will round up the number of elements for all length/expectedLength > 2  
+                //   will round up the number of elements for all length/expectedLength > 2
                 int numberOfElementsInSection = Math.Max((int) Math.Floor(mergedComponentLength[i] / expectedElementLength - 1), 0) + 1;
+                //  The axial-torsional elements group consecutive lateral elements of the same component, so
+                // their properties are constant. The last group of the component takes the remainder.
+                int numberOfAxialElementsInSection = Math.Max(numberOfElementsInSection / lateralElementsPerAxialElement, 1);
+                bool groupIsActive = true;
                 for (int j = 0; j < numberOfElementsInSection; j++ )
                 {
-                    // Check if the last node is still within the expected range
-                    if (RelativeNodeDepth[RelativeNodeDepth.Count-1] >= topOfString)
-                    {                          
+                    int axialIndexInSection = Math.Min(j / lateralElementsPerAxialElement, numberOfAxialElementsInSection - 1);
+                    if (j == axialIndexInSection * lateralElementsPerAxialElement)
+                    {
+                        //  The whole group is either active or inactive. Check if the
+                        // last node is still within the expected range
+                        groupIsActive = RelativeNodeDepth[RelativeNodeDepth.Count-1] >= topOfString;
+                        int lateralCount = (axialIndexInSection == numberOfAxialElementsInSection - 1) ?
+                                            numberOfElementsInSection - axialIndexInSection * lateralElementsPerAxialElement :
+                                            lateralElementsPerAxialElement;
+                        if (groupIsActive)
+                            AxialElementLateralCount.Add(lateralCount);
+                        else
+                            InactiveAxialElementLateralCount.Add(lateralCount);
+                    }
+                    if (groupIsActive)
+                    {
                         // Divide by the number of elements
                         ElementLength.Add( mergedComponentLength[i] / (double) numberOfElementsInSection );
                         //The Element depth is always in-between nodes
@@ -532,6 +616,10 @@ namespace NORCE.Drilling.Simulator4nDOF.Simulator.DataModel.ParametersModel
                 }     
             }
             #endregion
+            //  Merge the short axial-torsional elements, still in bit-first order. Active and inactive
+            // elements are merged separately, as inactive elements are activated one at a time
+            AxialElementLateralCount = MergeShortAxialElements(AxialElementLateralCount, ElementLength, MinimumAxialElementLength);
+            InactiveAxialElementLateralCount = MergeShortAxialElements(InactiveAxialElementLateralCount, InactiveElementLength, MinimumAxialElementLength);
 
             // The lists always starts from the bit. However, the rest of the simulator uses from top-first
             ElementLength.Reverse();
@@ -571,7 +659,9 @@ namespace NORCE.Drilling.Simulator4nDOF.Simulator.DataModel.ParametersModel
             InactiveElementEccentricity.Reverse();
             InactiveElementWeightCorrectionFactor.Reverse();
             InactiveElementSecondMomentOfArea.Reverse();
-            
+            AxialElementLateralCount.Reverse();
+            InactiveAxialElementLateralCount.Reverse();
+
 
             NodeOuterRadius.Add(ElementOuterRadius[0]);
             NodeInnerRadius.Add(ElementInnerRadius[0]);
@@ -594,6 +684,180 @@ namespace NORCE.Drilling.Simulator4nDOF.Simulator.DataModel.ParametersModel
             SleeveMassMomentOfInertia = Math.PI / 2.0 * SteelDensity * SleeveLength
                 * (Math.Pow(SleeveOuterRadius, 4) - Math.Pow(SleeveInnerRadius, 4)); // [kg.m^2]
 
+            BuildAxialGrid();
+        }
+        /// <summary>
+        /// Builds the axial-torsional element properties and the mapping between the axial-torsional
+        /// and the lateral grids from <see cref="AxialElementLateralCount"/>. Each axial-torsional element
+        /// is a linear finite element spanning a group of consecutive lateral elements, so every
+        /// axial-torsional node is also a lateral node.
+        /// </summary>
+        public void BuildAxialGrid()
+        {
+            AxialElementLength.Clear();
+            AxialElementDensity.Clear();
+            AxialElementArea.Clear();
+            AxialElementPolarInertia.Clear();
+            AxialElementYoungModuli.Clear();
+            AxialElementShearModuli.Clear();
+            AxialToLateralNode.Clear();
+            LateralToAxialElement.Clear();
+            LateralNaturalCoordinate.Clear();
+
+            AxialToLateralNode.Add(0);
+            int firstLateralElement = 0;
+            for (int e = 0; e < AxialElementLateralCount.Count; e++)
+            {
+                int lateralCount = AxialElementLateralCount[e];
+                //  An element may span several components. Its equivalent properties keep the total mass ρ·A·L,
+                // the total rotational inertia ρ·J·L, and the series axial and torsional stiffnesses
+                // 1/k = Σ L_k/(E_k·A_k) and 1/k = Σ L_k/(G_k·J_k). They reduce to the component properties
+                // when the element spans a single component.
+                double length = 0;
+                double areaTimesLength = 0;
+                double mass = 0;
+                double rotationalInertia = 0;
+                double axialFlexibility = 0;
+                double torsionalFlexibility = 0;
+                for (int k = firstLateralElement; k < firstLateralElement + lateralCount; k++)
+                {
+                    length += ElementLength[k];
+                    areaTimesLength += ElementArea[k] * ElementLength[k];
+                    mass += ElementDensity[k] * ElementArea[k] * ElementLength[k];
+                    rotationalInertia += ElementDensity[k] * ElementPolarInertia[k] * ElementLength[k];
+                    axialFlexibility += ElementLength[k] / (ElementYoungModuli[k] * ElementArea[k]);
+                    torsionalFlexibility += ElementLength[k] / (ElementShearModuli[k] * ElementPolarInertia[k]);
+                }
+                double area = areaTimesLength / length;
+                double density = mass / (area * length);
+                // Density-weighted polar inertia, so that density·J·L is the rotational inertia of the element
+                double polarInertia = rotationalInertia / (density * length);
+                AxialElementLength.Add(length);
+                AxialElementDensity.Add(density);
+                AxialElementArea.Add(area);
+                AxialElementPolarInertia.Add(polarInertia);
+                AxialElementYoungModuli.Add(length / (area * axialFlexibility));
+                AxialElementShearModuli.Add(length / (polarInertia * torsionalFlexibility));
+                // Natural coordinate of each lateral node inside the axial-torsional element
+                double position = 0;
+                for (int k = firstLateralElement; k < firstLateralElement + lateralCount; k++)
+                {
+                    LateralToAxialElement.Add(e);
+                    LateralNaturalCoordinate.Add(position / length);
+                    position += ElementLength[k];
+                }
+                firstLateralElement += lateralCount;
+                AxialToLateralNode.Add(firstLateralElement);
+            }
+            if (firstLateralElement != ElementLength.Count)
+                throw new InvalidOperationException($"The axial-torsional grid covers {firstLateralElement} lateral elements, but there are {ElementLength.Count}.");
+            // The bit node is the last node of both grids
+            LateralToAxialElement.Add(AxialElementLateralCount.Count - 1);
+            LateralNaturalCoordinate.Add(1.0);
+        }
+        /// <summary>
+        /// Merges consecutive axial-torsional elements until each one is at least <paramref name="minimumLength"/> long.
+        /// The elements are walked from the first one, and a short remainder at the end is merged into the previous element.
+        /// </summary>
+        /// <param name="lateralCounts">Number of lateral elements in each axial-torsional element.</param>
+        /// <param name="elementLengths">Lateral element lengths, in the same order as <paramref name="lateralCounts"/>.</param>
+        /// <param name="minimumLength">[m] Minimum axial-torsional element length. Zero or less disables the merging.</param>
+        /// <returns>Number of lateral elements in each merged axial-torsional element.</returns>
+        public static List<int> MergeShortAxialElements(IReadOnlyList<int> lateralCounts, IReadOnlyList<double> elementLengths, double minimumLength)
+        {
+            if (minimumLength <= 0)
+                return lateralCounts.ToList();
+            List<int> merged = new();
+            int lateralElement = 0;
+            int count = 0;
+            double length = 0;
+            foreach (int lateralCount in lateralCounts)
+            {
+                for (int k = lateralElement; k < lateralElement + lateralCount; k++)
+                    length += elementLengths[k];
+                lateralElement += lateralCount;
+                count += lateralCount;
+                if (length >= minimumLength)
+                {
+                    merged.Add(count);
+                    count = 0;
+                    length = 0;
+                }
+            }
+            if (count > 0)
+            {
+                if (merged.Count > 0)
+                    merged[^1] += count;
+                else
+                    merged.Add(count);
+            }
+            return merged;
+        }
+        /// <summary>
+        /// First order (linear) shape functions of the axial-torsional elements.
+        /// </summary>
+        /// <param name="naturalCoordinate">Natural coordinate inside the element, from 0 (top node) to 1 (bottom node).</param>
+        public static (double N1, double N2) ShapeFunctions(double naturalCoordinate)
+        {
+            return (1.0 - naturalCoordinate, naturalCoordinate);
+        }
+        /// <summary>
+        /// Linearly interpolates an axial-torsional nodal value to lateral node <paramref name="k"/>.
+        /// </summary>
+        public double InterpolateToLateral(IList<double> axialNodal, int k)
+        {
+            int e = LateralToAxialElement[k];
+            (double n1, double n2) = ShapeFunctions(LateralNaturalCoordinate[k]);
+            return n1 * axialNodal[e] + n2 * axialNodal[e + 1];
+        }
+        /// <summary>
+        /// Linearly interpolates axial-torsional nodal values to all lateral nodes.
+        /// </summary>
+        public void InterpolateToLateral(IList<double> axialNodal, IList<double> lateralNodal)
+        {
+            for (int k = 0; k < lateralNodal.Count; k++)
+            {
+                lateralNodal[k] = InterpolateToLateral(axialNodal, k);
+            }
+        }
+        /// <summary>
+        /// Converts point loads applied at the lateral nodes into the consistent nodal load vector of the
+        /// axial-torsional elements, F_e += N1·F_k and F_e+1 += N2·F_k. It preserves the total load and its moment.
+        /// </summary>
+        public void ConsistentNodalLoad(IList<double> lateralPointLoads, IList<double> axialNodalLoads)
+        {
+            for (int j = 0; j < axialNodalLoads.Count; j++)
+            {
+                axialNodalLoads[j] = 0.0;
+            }
+            for (int k = 0; k < lateralPointLoads.Count; k++)
+            {
+                int e = LateralToAxialElement[k];
+                (double n1, double n2) = ShapeFunctions(LateralNaturalCoordinate[k]);
+                axialNodalLoads[e] += n1 * lateralPointLoads[k];
+                axialNodalLoads[e + 1] += n2 * lateralPointLoads[k];
+            }
+        }
+        /// <summary>
+        /// Activates the first inactive axial-torsional element and all of its lateral elements
+        /// at the top of the string.
+        /// </summary>
+        /// <returns>The number of lateral elements added and the length of the new axial-torsional element.</returns>
+        public (int LateralElementsAdded, double AddedLength) ActivateAxialElement()
+        {
+            if (InactiveAxialElementLateralCount.Count == 0)
+                return (0, 0.0);
+            int lateralCount = InactiveAxialElementLateralCount[0];
+            double addedLength = 0;
+            for (int k = 0; k < lateralCount; k++)
+            {
+                ActivateElements();
+                addedLength += ElementLength[0];
+            }
+            AxialElementLateralCount.Insert(0, lateralCount);
+            if (InactiveAxialElementLateralCount.Count > 1) InactiveAxialElementLateralCount.RemoveAt(0);
+            BuildAxialGrid();
+            return (lateralCount, addedLength);
         }
         public void ActivateElements()
         {
