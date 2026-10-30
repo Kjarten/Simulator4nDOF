@@ -1,7 +1,6 @@
 ﻿using MathNet.Numerics.LinearAlgebra;
 using NORCE.Drilling.Simulator4nDOF.ModelShared;
 using SharpYaml.Events;
-using System.Diagnostics;
 namespace NORCE.Drilling.Simulator4nDOF.Simulator.DataModel.ParametersModel
 {
     /// <summary>
@@ -231,7 +230,13 @@ namespace NORCE.Drilling.Simulator4nDOF.Simulator.DataModel.ParametersModel
         public List<double> InactiveElementSecondMomentOfArea = new();
 
         // Axial-torsional discretization. Each axial-torsional element is a first order finite
-        // element that groups consecutive lateral elements of the same component.
+        // element that groups consecutive lateral elements. Short components are grouped together
+        // until the element reaches MinimumAxialElementLength.
+        /// <summary>
+        /// [m] Minimum length of an axial-torsional element. Shorter elements limit the stable time step,
+        /// in particular with stiffness-proportional damping, so they are merged with their neighbours
+        /// </summary>
+        public double MinimumAxialElementLength = 10;
         /// <summary>
         /// [-] Number of lateral elements in each active axial-torsional element (top-first)
         /// </summary>
@@ -387,6 +392,7 @@ namespace NORCE.Drilling.Simulator4nDOF.Simulator.DataModel.ParametersModel
             StiffnessProportionalAxial = configuration.StiffnessProportionalAxial;
             MassProportionalLateral = configuration.MassProportionalLateral;
             StiffnessProportionalLateral = configuration.StiffnessProportionalLateral;
+            MinimumAxialElementLength = configuration.MinimumAxialElementLength;
             #region Drill-String simplification
             // Simplify geometry by merging similar components 
             List<DrillStringComponentTypes> componentTypeList = new List<DrillStringComponentTypes>
@@ -610,6 +616,10 @@ namespace NORCE.Drilling.Simulator4nDOF.Simulator.DataModel.ParametersModel
                 }     
             }
             #endregion
+            //  Merge the short axial-torsional elements, still in bit-first order. Active and inactive
+            // elements are merged separately, as inactive elements are activated one at a time
+            AxialElementLateralCount = MergeShortAxialElements(AxialElementLateralCount, ElementLength, MinimumAxialElementLength);
+            InactiveAxialElementLateralCount = MergeShortAxialElements(InactiveAxialElementLateralCount, InactiveElementLength, MinimumAxialElementLength);
 
             // The lists always starts from the bit. However, the rest of the simulator uses from top-first
             ElementLength.Reverse();
@@ -699,20 +709,35 @@ namespace NORCE.Drilling.Simulator4nDOF.Simulator.DataModel.ParametersModel
             for (int e = 0; e < AxialElementLateralCount.Count; e++)
             {
                 int lateralCount = AxialElementLateralCount[e];
+                //  An element may span several components. Its equivalent properties keep the total mass ρ·A·L,
+                // the total rotational inertia ρ·J·L, and the series axial and torsional stiffnesses
+                // 1/k = Σ L_k/(E_k·A_k) and 1/k = Σ L_k/(G_k·J_k). They reduce to the component properties
+                // when the element spans a single component.
                 double length = 0;
+                double areaTimesLength = 0;
+                double mass = 0;
+                double rotationalInertia = 0;
+                double axialFlexibility = 0;
+                double torsionalFlexibility = 0;
                 for (int k = firstLateralElement; k < firstLateralElement + lateralCount; k++)
                 {
                     length += ElementLength[k];
-                    // A linear element assumes constant properties
-                    Debug.Assert(ElementYoungModuli[k] == ElementYoungModuli[firstLateralElement] && ElementArea[k] == ElementArea[firstLateralElement],
-                        "An axial-torsional element must not span more than one drill-string component");
+                    areaTimesLength += ElementArea[k] * ElementLength[k];
+                    mass += ElementDensity[k] * ElementArea[k] * ElementLength[k];
+                    rotationalInertia += ElementDensity[k] * ElementPolarInertia[k] * ElementLength[k];
+                    axialFlexibility += ElementLength[k] / (ElementYoungModuli[k] * ElementArea[k]);
+                    torsionalFlexibility += ElementLength[k] / (ElementShearModuli[k] * ElementPolarInertia[k]);
                 }
+                double area = areaTimesLength / length;
+                double density = mass / (area * length);
+                // Density-weighted polar inertia, so that density·J·L is the rotational inertia of the element
+                double polarInertia = rotationalInertia / (density * length);
                 AxialElementLength.Add(length);
-                AxialElementDensity.Add(ElementDensity[firstLateralElement]);
-                AxialElementArea.Add(ElementArea[firstLateralElement]);
-                AxialElementPolarInertia.Add(ElementPolarInertia[firstLateralElement]);
-                AxialElementYoungModuli.Add(ElementYoungModuli[firstLateralElement]);
-                AxialElementShearModuli.Add(ElementShearModuli[firstLateralElement]);
+                AxialElementDensity.Add(density);
+                AxialElementArea.Add(area);
+                AxialElementPolarInertia.Add(polarInertia);
+                AxialElementYoungModuli.Add(length / (area * axialFlexibility));
+                AxialElementShearModuli.Add(length / (polarInertia * torsionalFlexibility));
                 // Natural coordinate of each lateral node inside the axial-torsional element
                 double position = 0;
                 for (int k = firstLateralElement; k < firstLateralElement + lateralCount; k++)
@@ -729,6 +754,44 @@ namespace NORCE.Drilling.Simulator4nDOF.Simulator.DataModel.ParametersModel
             // The bit node is the last node of both grids
             LateralToAxialElement.Add(AxialElementLateralCount.Count - 1);
             LateralNaturalCoordinate.Add(1.0);
+        }
+        /// <summary>
+        /// Merges consecutive axial-torsional elements until each one is at least <paramref name="minimumLength"/> long.
+        /// The elements are walked from the first one, and a short remainder at the end is merged into the previous element.
+        /// </summary>
+        /// <param name="lateralCounts">Number of lateral elements in each axial-torsional element.</param>
+        /// <param name="elementLengths">Lateral element lengths, in the same order as <paramref name="lateralCounts"/>.</param>
+        /// <param name="minimumLength">[m] Minimum axial-torsional element length. Zero or less disables the merging.</param>
+        /// <returns>Number of lateral elements in each merged axial-torsional element.</returns>
+        public static List<int> MergeShortAxialElements(IReadOnlyList<int> lateralCounts, IReadOnlyList<double> elementLengths, double minimumLength)
+        {
+            if (minimumLength <= 0)
+                return lateralCounts.ToList();
+            List<int> merged = new();
+            int lateralElement = 0;
+            int count = 0;
+            double length = 0;
+            foreach (int lateralCount in lateralCounts)
+            {
+                for (int k = lateralElement; k < lateralElement + lateralCount; k++)
+                    length += elementLengths[k];
+                lateralElement += lateralCount;
+                count += lateralCount;
+                if (length >= minimumLength)
+                {
+                    merged.Add(count);
+                    count = 0;
+                    length = 0;
+                }
+            }
+            if (count > 0)
+            {
+                if (merged.Count > 0)
+                    merged[^1] += count;
+                else
+                    merged.Add(count);
+            }
+            return merged;
         }
         /// <summary>
         /// First order (linear) shape functions of the axial-torsional elements.
