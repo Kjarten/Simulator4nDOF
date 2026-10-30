@@ -509,6 +509,10 @@
           "LengthBetweenLumpedElements": {
             "type": "number",
             "format": "double"
+          },
+          "MinimumAxialElementLength": {
+            "type": "number",
+            "format": "double"
           }
         },
         "additionalProperties": false

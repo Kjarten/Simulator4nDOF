@@ -17,13 +17,17 @@
                        Size="Size.Medium">
                 Back
             </MudButton>
-            <MudButton OnClick="@AddSimulation"
-                       Variant="Variant.Filled"
-                       Color="Color.Primary"
-                       Size="Size.Medium">
-                <img src="images/BitIconContour.svg" style="height:20px;width:auto;margin-right:8px;filter:brightness(0) invert(1);vertical-align:middle;" />
-                Run Simulation
-            </MudButton>
+            @{ var missingInputs = GetMissingInputs(); }
+            <MudTooltip Text="@(missingInputs.Count > 0 ? "Missing: " + string.Join(", ", missingInputs) : "All required inputs are set")">
+                <MudButton OnClick="@AddSimulation"
+                           Disabled="@(missingInputs.Count > 0)"
+                           Variant="Variant.Filled"
+                           Color="Color.Primary"
+                           Size="Size.Medium">
+                    <img src="images/BitIconContour.svg" style="height:20px;width:auto;margin-right:8px;filter:brightness(0) invert(1);vertical-align:middle;" />
+                    Run Simulation
+                </MudButton>
+            </MudTooltip>
         </MudToolBar>
         <MudDivider />
 
@@ -56,7 +60,8 @@
                         Trajectories="@Trajectories"
                         WellBoreArchitectures="@WellBoreArchitectures"
                         FluidDescriptions="@FluidDescriptions"
-                        GeothermalProperties="@GeothermalProperties"/>
+                        GeothermalProperties="@GeothermalProperties"
+                        OnContextualDataChanged="@StateHasChanged"/>
                 }
             </MudStep>
 
@@ -87,7 +92,7 @@
                             Add row
                         </MudButton>
                     </div>
-                    <SetPointsEditor Simulation="@Simulation" />
+                    <SetPointsEditor Simulation="@Simulation" OnSetPointsChanged="@StateHasChanged" />
                 }
             </MudStep>
 
@@ -141,19 +146,10 @@
     {
         if (Simulation != null)
         {
-            if (Simulation.ContextualData.DrillStringID == null || Simulation.ContextualData.DrillStringID == Guid.Empty)
+            var missingInputs = GetMissingInputs();
+            if (missingInputs.Count > 0)
             {
-                Snackbar.Add("Please select a Drill String", Severity.Warning);
-                return;
-            }
-            if (Simulation.ContextualData.TrajectoryID == null || Simulation.ContextualData.TrajectoryID == Guid.Empty)
-            {
-                Snackbar.Add("Please select a Trajectory", Severity.Warning);
-                return;
-            }
-            if (RequiresRigSelection() && (Simulation.ContextualData.RigID == null || Simulation.ContextualData.RigID == Guid.Empty))
-            {
-                Snackbar.Add("Please select a Rig for a non-fixed platform cluster", Severity.Warning);
+                Snackbar.Add("Please select: " + string.Join(", ", missingInputs), Severity.Warning);
                 return;
             }
             try
@@ -199,6 +195,43 @@
             Simulation.SetPointsList.Add(new SetPoints() { TimeDuration = 1, SurfaceRPM = 0, TopOfStringVelocity = 0 });
         }
     }
+
+    /// <summary>
+    /// Lists the inputs that the service needs before it can run the simulation
+    /// </summary>
+    private List<string> GetMissingInputs()
+    {
+        var missing = new List<string>();
+        var contextualData = Simulation?.ContextualData;
+        if (contextualData == null)
+        {
+            missing.Add("Contextual data");
+            return missing;
+        }
+        if (IsEmpty(contextualData.DrillStringID))
+            missing.Add("Drill string");
+        if (IsEmpty(contextualData.TrajectoryID))
+            missing.Add("Trajectory");
+        if (IsEmpty(contextualData.DrillingFluidDescriptionID))
+            missing.Add("Fluid");
+        if (IsEmpty(contextualData.WellBoreArchitectureID))
+            missing.Add("Wellbore architecture");
+        else if (contextualData.CasingID == null)
+            missing.Add("Casing section");
+        // Without a rig, the service finds it from the wellbore
+        if (IsEmpty(contextualData.RigID))
+        {
+            if (IsEmpty(Simulation!.WellBoreID))
+                missing.Add("Wellbore");
+            else if (RequiresRigSelection())
+                missing.Add("Rig");
+        }
+        if (Simulation!.SetPointsList == null || Simulation.SetPointsList.Count == 0)
+            missing.Add("Set points");
+        return missing;
+    }
+
+    private static bool IsEmpty(Guid? id) => id == null || id == Guid.Empty;
 
     private bool RequiresRigSelection()
     {

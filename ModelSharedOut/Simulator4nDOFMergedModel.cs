@@ -73490,6 +73490,9 @@ namespace NORCE.Drilling.Simulator4nDOF.ModelShared
         [System.Text.Json.Serialization.JsonPropertyName("LengthBetweenLumpedElements")]
         public double LengthBetweenLumpedElements { get; set; }
 
+        [System.Text.Json.Serialization.JsonPropertyName("MinimumAxialElementLength")]
+        public double MinimumAxialElementLength { get; set; }
+
         private System.Collections.Generic.IDictionary<string, object> _additionalProperties;
 
         [System.Text.Json.Serialization.JsonExtensionData]
