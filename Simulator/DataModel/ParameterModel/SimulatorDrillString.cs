@@ -303,23 +303,31 @@ namespace NORCE.Drilling.Simulator4nDOF.Simulator.DataModel.ParametersModel
         /// </summary>
         public Vector<double> SleeveTorsionalDamping;
 
+        // Structural damping uses Rayleigh damping, C = a·M + b·K
         /// <summary>
-        /// [N.m.s/rad] Torsional damping
+        /// [1/s] Torsional mass-proportional damping coefficient a
         /// </summary>
-        public double TorsionalDampingFactor = 1.0;
+        public double MassProportionalTorsional = 0.35;
         /// <summary>
-        /// [N.s/m] Axial damping
+        /// [s] Torsional stiffness-proportional damping coefficient b
         /// </summary>
-        public double AxialDampingFactor = 1.0;
+        public double StiffnessProportionalTorsional = 0.006;
         /// <summary>
-        /// [N.s/m] Lateral damping
+        /// [1/s] Axial mass-proportional damping coefficient a
         /// </summary>
-        public double LateralDampingFactor = 0.0;
-
-        // Structural damping - calculated
-        public double CalculatedTorsionalDamping;
-        public double CalculatedAxialDamping;
-        public double CalculateLateralDamping;
+        public double MassProportionalAxial = 0.35;
+        /// <summary>
+        /// [s] Axial stiffness-proportional damping coefficient b
+        /// </summary>
+        public double StiffnessProportionalAxial = 0.006;
+        /// <summary>
+        /// [1/s] Lateral mass-proportional damping coefficient a
+        /// </summary>
+        public double MassProportionalLateral = 0.0;
+        /// <summary>
+        /// [s] Lateral stiffness-proportional damping coefficient b
+        /// </summary>
+        public double StiffnessProportionalLateral = 0.0;
         public double TotalLength;
 
         //IMU sensors - configure
@@ -373,9 +381,12 @@ namespace NORCE.Drilling.Simulator4nDOF.Simulator.DataModel.ParametersModel
             SensorDistanceFromBit = configuration.SensorDistanceFromBit; 
             SleeveDistancesFromBit = configuration.SleeveDistancesFromBit;
             SleeveTorsionalDampingCoefficient = configuration.SleeveDamping;
-            TorsionalDampingFactor = configuration.TorsionalDamping;
-            AxialDampingFactor = configuration.AxialDamping;
-            LateralDampingFactor = configuration.LateralDamping;
+            MassProportionalTorsional = configuration.MassProportionalTorsional;
+            StiffnessProportionalTorsional = configuration.StiffnessProportionalTorsional;
+            MassProportionalAxial = configuration.MassProportionalAxial;
+            StiffnessProportionalAxial = configuration.StiffnessProportionalAxial;
+            MassProportionalLateral = configuration.MassProportionalLateral;
+            StiffnessProportionalLateral = configuration.StiffnessProportionalLateral;
             #region Drill-String simplification
             // Simplify geometry by merging similar components 
             List<DrillStringComponentTypes> componentTypeList = new List<DrillStringComponentTypes>

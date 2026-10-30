@@ -491,12 +491,12 @@ namespace NORCE.Drilling.Simulator4nDOF.Simulator.SimulatorModels
                 torsionalLumpedInertia[i] += torsionalInertia;
                 torsionalLumpedInertia[i + 1] += torsionalInertia;
                 // ========================================================== Damping Terms ==============================================================
-                massProportionalDampingLateral[i] += parameters.Drillstring.LateralDampingFactor * lateralMass;
-                massProportionalDampingLateral[i + 1] += parameters.Drillstring.LateralDampingFactor * lateralMass;
-                massProportionalDampingAxial[i] += parameters.Drillstring.AxialDampingFactor * axialMass;
-                massProportionalDampingAxial[i + 1] += parameters.Drillstring.AxialDampingFactor * axialMass;
-                inertiaProportionalDampingTorsional[i] += parameters.Drillstring.TorsionalDampingFactor * torsionalInertia;
-                inertiaProportionalDampingTorsional[i + 1] += parameters.Drillstring.TorsionalDampingFactor * torsionalInertia;
+                massProportionalDampingLateral[i] += parameters.Drillstring.MassProportionalLateral * lateralMass;
+                massProportionalDampingLateral[i + 1] += parameters.Drillstring.MassProportionalLateral * lateralMass;
+                massProportionalDampingAxial[i] += parameters.Drillstring.MassProportionalAxial * axialMass;
+                massProportionalDampingAxial[i + 1] += parameters.Drillstring.MassProportionalAxial * axialMass;
+                inertiaProportionalDampingTorsional[i] += parameters.Drillstring.MassProportionalTorsional * torsionalInertia;
+                inertiaProportionalDampingTorsional[i + 1] += parameters.Drillstring.MassProportionalTorsional * torsionalInertia;
                 // ========================================================= Stiffness Terms =============================================================
                 //Pre-calculations
                 double axialStiffness = parameters.Drillstring.ElementYoungModuli[i] * parameters.Drillstring.ElementArea[i] / parameters.Drillstring.ElementLength[i];              
